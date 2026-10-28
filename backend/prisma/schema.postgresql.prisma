@@ -1,0 +1,208 @@
+// Production PostgreSQL Prisma schema for English Learning Dutt
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String               @id @default(uuid())
+  name               String
+  email              String               @unique
+  passwordHash       String               @map("password_hash")
+  englishLevel       String               @default("B1") @map("english_level")
+  targetLevel        String               @default("C1") @map("target_level")
+  dailyGoalMinutes   Int                  @default(15) @map("daily_goal_minutes")
+  streak             Int                  @default(0)
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  profile            UserProfile?
+  conversations      Conversation[]
+  grammarMistakes    GrammarMistake[]
+  userVocabulary     UserVocabulary[]
+  pronunciationScores PronunciationScore[]
+  learningProgress   LearningProgress[]
+  userLessons        UserLesson[]
+  assessments        Assessment[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  nativeLanguage String   @default("Hindi") @map("native_language")
+  learningGoal   String   @default("Career Advancement") @map("learning_goal")
+  occupation     String?
+  timezone       String   @default("Asia/Kolkata")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Conversation {
+  id              String           @id @default(uuid())
+  userId          String           @map("user_id")
+  mode            String           @default("FREE")
+  topic           String           @default("General Conversation")
+  startedAt       DateTime         @default(now()) @map("started_at")
+  endedAt         DateTime?        @map("ended_at")
+  durationSeconds Int              @default(0) @map("duration_seconds")
+  summary         String?
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        Message[]
+  grammarMistakes GrammarMistake[]
+  pronunciationScores PronunciationScore[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String          @id @default(uuid())
+  conversationId String          @map("conversation_id")
+  sender         String
+  messageText    String          @map("message_text")
+  audioUrl       String?         @map("audio_url")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  grammarMistakes GrammarMistake[]
+
+  @@map("messages")
+}
+
+model GrammarMistake {
+  id             String        @id @default(uuid())
+  userId         String        @map("user_id")
+  conversationId String        @map("conversation_id")
+  messageId      String?       @map("message_id")
+  originalText   String        @map("original_text")
+  correctedText  String        @map("corrected_text")
+  explanation    String
+  grammarTopic   String        @map("grammar_topic")
+  severity       String        @default("MEDIUM")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@map("grammar_mistakes")
+}
+
+model Vocabulary {
+  id              String           @id @default(uuid())
+  word            String           @unique
+  meaning         String
+  exampleSentence String           @map("example_sentence")
+  difficulty      String           @default("B1")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  userVocabulary  UserVocabulary[]
+
+  @@map("vocabulary")
+}
+
+model UserVocabulary {
+  id             String     @id @default(uuid())
+  userId         String     @map("user_id")
+  vocabularyId   String     @map("vocabulary_id")
+  status         String     @default("NEW")
+  masteryScore   Int        @default(0) @map("mastery_score")
+  lastReviewedAt DateTime?  @map("last_reviewed_at")
+  nextReviewAt   DateTime?  @map("next_review_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vocabulary     Vocabulary @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, vocabularyId])
+  @@map("user_vocabulary")
+}
+
+model PronunciationScore {
+  id             String        @id @default(uuid())
+  userId         String        @map("user_id")
+  conversationId String?       @map("conversation_id")
+  word           String
+  score          Int
+  feedback       String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@map("pronunciation_scores")
+}
+
+model LearningProgress {
+  id                 String   @id @default(uuid())
+  userId             String   @map("user_id")
+  date               String
+  speakingScore      Int      @default(70) @map("speaking_score")
+  grammarScore       Int      @default(70) @map("grammar_score")
+  vocabularyScore    Int      @default(70) @map("vocabulary_score")
+  pronunciationScore Int      @default(70) @map("pronunciation_score")
+  overallScore       Int      @default(70) @map("overall_score")
+  minutesPracticed   Int      @default(0) @map("minutes_practiced")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("learning_progress")
+}
+
+model Lesson {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  level       String       @default("B1")
+  category    String
+  content     String
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  userLessons UserLesson[]
+
+  @@map("lessons")
+}
+
+model UserLesson {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  lessonId    String    @map("lesson_id")
+  status      String    @default("IN_PROGRESS")
+  score       Int       @default(0)
+  completedAt DateTime? @map("completed_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@map("user_lessons")
+}
+
+model Assessment {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String   @default("INITIAL")
+  score     Int
+  level     String
+  result    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("assessments")
+}

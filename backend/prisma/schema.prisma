@@ -1,0 +1,210 @@
+// Prisma schema for English Learning Dutt
+// Primary local database: SQLite (dev.db) for instant local zero-config runs and tests
+// Production schema target: PostgreSQL (see schema.postgresql.prisma)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String               @id @default(uuid())
+  name               String
+  email              String               @unique
+  passwordHash       String
+  englishLevel       String               @default("B1") // A1, A2, B1, B2, C1
+  targetLevel        String               @default("C1")
+  dailyGoalMinutes   Int                  @default(15)
+  streak             Int                  @default(0)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  profile            UserProfile?
+  conversations      Conversation[]
+  grammarMistakes    GrammarMistake[]
+  userVocabulary     UserVocabulary[]
+  pronunciationScores PronunciationScore[]
+  learningProgress   LearningProgress[]
+  userLessons        UserLesson[]
+  assessments        Assessment[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  nativeLanguage String   @default("Hindi")
+  learningGoal   String   @default("Career Advancement")
+  occupation     String?
+  timezone       String   @default("Asia/Kolkata")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Conversation {
+  id              String           @id @default(uuid())
+  userId          String
+  mode            String           @default("FREE") // FREE, DAILY_PRACTICE, INTERVIEW, ROLEPLAY, DEBATE
+  topic           String           @default("General Conversation")
+  startedAt       DateTime         @default(now())
+  endedAt         DateTime?
+  durationSeconds Int              @default(0)
+  summary         String?
+  createdAt       DateTime         @default(now())
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        Message[]
+  grammarMistakes GrammarMistake[]
+  pronunciationScores PronunciationScore[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String          @id @default(uuid())
+  conversationId String
+  sender         String          // USER or DUTT
+  messageText    String
+  audioUrl       String?
+  createdAt      DateTime        @default(now())
+
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  grammarMistakes GrammarMistake[]
+
+  @@map("messages")
+}
+
+model GrammarMistake {
+  id             String        @id @default(uuid())
+  userId         String
+  conversationId String
+  messageId      String?
+  originalText   String
+  correctedText  String
+  explanation    String
+  grammarTopic   String        // e.g. "past_tense", "articles", "prepositions", "subject_verb_agreement"
+  severity       String        @default("MEDIUM") // LOW, MEDIUM, HIGH
+  createdAt      DateTime      @default(now())
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@map("grammar_mistakes")
+}
+
+model Vocabulary {
+  id              String           @id @default(uuid())
+  word            String           @unique
+  meaning         String
+  exampleSentence String
+  difficulty      String           @default("B1") // A1, A2, B1, B2, C1
+  createdAt       DateTime         @default(now())
+
+  userVocabulary  UserVocabulary[]
+
+  @@map("vocabulary")
+}
+
+model UserVocabulary {
+  id             String     @id @default(uuid())
+  userId         String
+  vocabularyId   String
+  status         String     @default("NEW") // NEW, LEARNING, MASTERED
+  masteryScore   Int        @default(0)
+  lastReviewedAt DateTime?
+  nextReviewAt   DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vocabulary     Vocabulary @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, vocabularyId])
+  @@map("user_vocabulary")
+}
+
+model PronunciationScore {
+  id             String        @id @default(uuid())
+  userId         String
+  conversationId String?
+  word           String
+  score          Int           // 0-100
+  feedback       String?
+  createdAt      DateTime      @default(now())
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@map("pronunciation_scores")
+}
+
+model LearningProgress {
+  id                 String   @id @default(uuid())
+  userId             String
+  date               String   // YYYY-MM-DD
+  speakingScore      Int      @default(70)
+  grammarScore       Int      @default(70)
+  vocabularyScore    Int      @default(70)
+  pronunciationScore Int      @default(70)
+  overallScore       Int      @default(70)
+  minutesPracticed   Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("learning_progress")
+}
+
+model Lesson {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  level       String       @default("B1") // A1, A2, B1, B2, C1
+  category    String       // Grammar, Vocabulary, Speaking, Roleplay, Interview
+  content     String       // JSON structure with steps, theory, practice exercises
+  createdAt   DateTime     @default(now())
+
+  userLessons UserLesson[]
+
+  @@map("lessons")
+}
+
+model UserLesson {
+  id          String    @id @default(uuid())
+  userId      String
+  lessonId    String
+  status      String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
+  score       Int       @default(0)
+  completedAt DateTime?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@map("user_lessons")
+}
+
+model Assessment {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   @default("INITIAL") // INITIAL, PERIODIC
+  score     Int
+  level     String   // A1, A2, B1, B2, C1
+  result    String   // JSON string with speaking, grammar, vocabulary, pronunciation breakdowns
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("assessments")
+}
